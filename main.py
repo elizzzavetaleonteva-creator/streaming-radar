@@ -6,6 +6,7 @@ from formatter import format_digest
 from telegram_bot import send_telegram_message
 from tmdb import enrich_films
 
+
 STATE_FILE = Path(__file__).parent / "data" / "last_article.json"
 
 
@@ -30,12 +31,13 @@ def main():
 
     # Парсим статью и формируем дайджест
     films = parse_article(article_url)
-print(f"Найдено фильмов: {len(films)}")
+    print(f"Найдено фильмов: {len(films)}")
 
-films = enrich_films(films)
-print("Фильмы обогащены данными TMDB")
+    # Обогащаем фильмы данными TMDB
+    films = enrich_films(films)
+    print("Фильмы обогащены данными TMDB")
 
-message = format_digest(films, article_url)
+    message = format_digest(films, article_url)
 
     # Отправляем дайджест в Telegram
     send_telegram_message(message)
