@@ -16,7 +16,7 @@ Your weekly guide to what's new in streaming.
 
 Discover the latest movie releases across streaming platforms — from subscription premieres to digital rentals and purchases.
 
-Every week, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
+Every Friday, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
 
 Less scrolling. More watching. 🍿
 """
