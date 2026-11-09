@@ -1,15 +1,15 @@
 
+
 import os
+import time
 import requests
 from dotenv import load_dotenv
-
-from parser import parse_article
-from formatter import format_digest, SOURCE_URL
 
 load_dotenv()
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "").strip()
 
 
 def split_message(text, max_length=4000):
@@ -37,40 +37,92 @@ def split_message(text, max_length=4000):
     return messages
 
 
+def get_active_subscribers():
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        raise ValueError("Не настроены данные Supabase")
+
+    url = f"{SUPABASE_URL}/rest/v1/subscribers"
+
+    headers = {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Content-Type": "application/json",
+    }
+
+    response = requests.get(
+        url,
+        params={
+            "select": "telegram_id",
+            "is_active": "eq.true",
+        },
+        headers=headers,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    subscribers = response.json()
+
+    return [subscriber["telegram_id"] for subscriber in subscribers]
+
+
+def send_one_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+
+    response = requests.post(
+        url,
+        json={
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        },
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    if not result.get("ok"):
+        raise RuntimeError(f"Ошибка Telegram: {result}")
+
+
 def send_telegram_message(text):
     if not TOKEN:
-        raise ValueError("Не найден TELEGRAM_BOT_TOKEN в файле .env")
+        raise ValueError("Не найден TELEGRAM_BOT_TOKEN")
 
-    if not CHAT_ID:
-        raise ValueError("Не найден TELEGRAM_CHAT_ID в файле .env")
+    subscribers = get_active_subscribers()
+
+    if not subscribers:
+        print("Активных подписчиков пока нет.")
+        return
 
     messages = split_message(text)
 
-    for message in messages:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    successful = 0
+    failed = []
 
-        response = requests.post(
-            url,
-            json={
-                "chat_id": CHAT_ID,
-                "text": message,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            },
-            timeout=30,
+    print(f"Активных подписчиков: {len(subscribers)}")
+
+    for telegram_id in subscribers:
+        try:
+            for message in messages:
+                send_one_message(telegram_id, message)
+                time.sleep(0.05)
+
+            successful += 1
+            print(f"Дайджест отправлен: {telegram_id}")
+
+        except Exception as error:
+            failed.append(telegram_id)
+            print(f"Ошибка отправки для {telegram_id}: {error}")
+
+        time.sleep(0.05)
+
+    print(f"Успешно: {successful}")
+    print(f"Ошибок: {len(failed)}")
+
+    if failed:
+        raise RuntimeError(
+            f"Не удалось отправить дайджест подписчикам: {failed}"
         )
-
-        response.raise_for_status()
-
-        result = response.json()
-
-        if not result.get("ok"):
-            raise RuntimeError(f"Ошибка Telegram: {result}")
-
-    print(f"Успешно отправлено сообщений: {len(messages)}")
-
-
-if __name__ == "__main__":
-    films = parse_article(SOURCE_URL)
-    message = format_digest(films)
-    send_telegram_message(message)
