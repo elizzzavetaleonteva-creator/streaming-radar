@@ -1,41 +1,83 @@
-
-
 import re
 import requests
-from bs4 import BeautifulSoup 
+
+from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from datetime import date, timedelta
+
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; StreamingRadar/1.0)"
+}
 
 
 def find_latest_weekly_article():
-    homepage = "https://whentostream.com/"
+
+    homepage = "https://whentostream.com/" 
 
     response = requests.get(
         homepage,
         headers=HEADERS,
         timeout=30
     )
+
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
 
+    articles = []
+
     for link in soup.find_all("a", href=True):
+
         title = link.get_text(" ", strip=True)
 
-        if re.search(
+        if not re.search(
             r"what.?s streaming this week",
             title,
             re.IGNORECASE
         ):
-            return urljoin(homepage, link["href"])
+            continue
 
-    raise ValueError("Не удалось найти свежую еженедельную статью")
+        article_url = urljoin(homepage, link["href"])
 
+        match = re.search(
+            r"this-week-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d{1,2})",
+            article_url,
+            re.IGNORECASE
+        )
 
-URL = "https://whentostream.com/whats-streaming-this-week-11-8-11-15/"
+        if not match:
+            continue
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; StreamingRadar/1.0)"
-}
+        start_month, start_day, end_month, end_day = map(
+            int, match.groups()
+        )
+
+        today = date.today()
+
+        article_date = date(
+            today.year,
+            start_month,
+            start_day
+        )
+
+        # Учитываем переход между годами
+        if article_date < today - timedelta(days=180):
+            article_date = article_date.replace(year=today.year + 1)
+
+        elif article_date > today + timedelta(days=180):
+            article_date = article_date.replace(year=today.year - 1)
+        articles.append((article_date, article_url))
+
+    if not articles:
+        raise ValueError(
+            "Не удалось найти еженедельные статьи с датами в URL"
+        )
+
+    articles.sort(key=lambda article: article[0], reverse=True)
+
+    return articles[0][1]
+
 
 STREAMING_PLATFORMS = [
     "Netflix",
@@ -166,7 +208,12 @@ def parse_article(url):
 
 
 if __name__ == "__main__":
-    films = parse_article(URL)
+
+    article_url = find_latest_weekly_article()
+
+    print("Найдена статья:", article_url)
+
+    films = parse_article(article_url)
 
     print(f"\nНАЙДЕНО ФИЛЬМОВ: {len(films)}\n")
 
