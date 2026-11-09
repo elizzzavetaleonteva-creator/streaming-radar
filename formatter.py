@@ -7,16 +7,16 @@ def format_film(film):
     platform = film["platform"]
 
     if release_type == "subscription":
-        release_label = f"📺 {platform} · Subscription"
+        release_label = f" {platform} · Subscription"
 
     elif release_type == "digital_purchase":
-        release_label = f"💳 {platform} · Digital purchase"
+        release_label = f" {platform} · Digital purchase"
 
     elif release_type == "digital_rental":
-        release_label = f"🎬 {platform} · Digital rental"
+        release_label = f" {platform} · Digital rental"
 
     elif release_type == "digital_purchase_and_rental":
-        release_label = f"💳 {platform} · Digital purchase / rental"
+        release_label = f" {platform} · Digital purchase / rental"
 
     else:
         release_label = platform
@@ -60,13 +60,13 @@ def format_digest(films, source_url=SOURCE_URL):
 
         if release_date != current_date:
             current_date = release_date
-            lines.append(f"\n📅 <b>{current_date}</b>\n")
+            lines.append(f"\n <b>{current_date}</b>\n")
 
         lines.append(format_film(film))
         lines.append("")
 
     lines.append(
-        f'🔗 <a href="{source_url}">Source: When to Stream</a>'
+        f' <a href="{source_url}">Source: When to Stream</a>'
     )
 
     return "\n".join(lines)
