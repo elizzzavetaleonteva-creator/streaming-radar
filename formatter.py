@@ -43,8 +43,8 @@ def format_digest(films, source_url=SOURCE_URL):
         return "No new releases found this week."
 
     blocks = [
-        "<b>🎬 STREAMING RADAR</b>\n"
-        f"<i>{len(films)} movies · This week</i>"
+        "<b>📺 Now Streaming This Week</b>\n"
+        f"{len(films)} movies to add to your watchlist"
     ]
 
     current_date = None
