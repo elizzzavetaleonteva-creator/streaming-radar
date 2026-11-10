@@ -28,7 +28,7 @@ Your weekly guide to what's new in streaming.
 
 Discover the latest movie releases across streaming platforms — from subscription premieres to digital rentals and purchases.
 
-Every Friday, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
+Every Monday, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
 
 Less scrolling. More watching. 🍿
 """
@@ -38,7 +38,7 @@ WELCOME_MESSAGE = """
 
 You are now subscribed to our weekly newsletter.
 
-Every Friday, I'll send you a curated digest of new full-length movies available on streaming platforms.
+Every Monday, I'll send you a curated digest of new full-length movies available on streaming platforms.
 
 You'll get movie details, cast, directors, plot summaries, and where to watch.
 
