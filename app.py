@@ -1,9 +1,16 @@
 
+import json
 import os
 import hmac
 import requests
 from flask import Flask, request
 from datetime import datetime, timezone
+from pathlib import Path
+
+from formatter import format_digest
+from parser import find_latest_weekly_article, parse_article
+from telegram_bot import split_message
+from tmdb import enrich_films
 app = Flask(__name__)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -11,6 +18,7 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
+LAST_ARTICLE_FILE = Path(__file__).parent / "data" / "last_article.json"
 
 INFO_MESSAGE = """
 🎬 <b>Streaming Radar</b>
@@ -20,6 +28,8 @@ Your weekly guide to what's new in streaming.
 Discover the latest movie releases across streaming platforms — from subscription premieres to digital rentals and purchases.
 
 Every Friday, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
+
+Send /latest anytime to get the latest digest.
 
 Less scrolling. More watching. 🍿
 """
@@ -35,8 +45,12 @@ You'll get movie details, cast, directors, plot summaries, and where to watch.
 
 Less scrolling. More watching. 🍿
 
+Send /latest anytime to get this week's digest.
+
 To unsubscribe, send /stop.
 """
+
+LATEST_ERROR_MESSAGE = "Sorry, I could not load the latest digest right now. Please try again later."
 
 STOP_MESSAGE = """
 You have been unsubscribed from Streaming Radar.
@@ -99,6 +113,32 @@ def supabase_request(method, telegram_id, data=None):
         raise ValueError("Unsupported Supabase method")
 
     response.raise_for_status()
+
+
+def build_latest_digest_messages():
+    article_url = None
+
+    if LAST_ARTICLE_FILE.exists():
+        try:
+            with LAST_ARTICLE_FILE.open("r", encoding="utf-8") as file:
+                state = json.load(file)
+            article_url = state.get("last_article_url") if isinstance(state, dict) else None
+        except (OSError, json.JSONDecodeError):
+            app.logger.exception("Could not read the last article state")
+
+    if not article_url:
+        article_url = find_latest_weekly_article()
+
+    films = parse_article(article_url)
+    if not films:
+        raise ValueError("The latest article contains no movie releases")
+
+    try:
+        films = enrich_films(films)
+    except Exception:
+        app.logger.exception("TMDB enrichment failed; using article details")
+
+    return split_message(format_digest(films, article_url))
 
 
 @app.route("/", methods=["GET"])
@@ -168,6 +208,20 @@ def webhook():
         )
 
         send_message(chat_id, STOP_MESSAGE)
+
+    elif command == "/latest" and telegram_id:
+
+        if chat.get("type") != "private":
+            return "OK", 200
+
+        try:
+            messages = build_latest_digest_messages()
+        except Exception:
+            app.logger.exception("Failed to build the latest digest")
+            send_message(chat_id, LATEST_ERROR_MESSAGE)
+        else:
+            for digest_message in messages:
+                send_message(chat_id, digest_message)
 
     elif command == "/info":
 
