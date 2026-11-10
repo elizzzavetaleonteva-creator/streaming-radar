@@ -7,17 +7,13 @@ def format_film(film):
     platform = film["platform"]
 
     if release_type == "subscription":
-        release_label = f" {platform} · Subscription"
-
+        release_label = f"{platform} · Subscription"
     elif release_type == "digital_purchase":
-        release_label = f" {platform} · Digital purchase"
-
+        release_label = f"{platform} · Digital purchase"
     elif release_type == "digital_rental":
-        release_label = f" {platform} · Digital rental"
-
+        release_label = f"{platform} · Digital rental"
     elif release_type == "digital_purchase_and_rental":
-        release_label = f" {platform} · Digital purchase / rental"
-
+        release_label = f"{platform} · Digital purchase / rental"
     else:
         release_label = platform
 
@@ -25,19 +21,20 @@ def format_film(film):
 
     lines = [
         f"<b>{original_title}</b>",
-        release_label,
+        f"<i>{release_label}</i>",
     ]
 
     if film.get("director"):
-        lines.append(f"<b>Director:</b> {film['director']}")
+        lines.append(f"Director: {film['director']}")
 
     if film.get("cast"):
-        lines.append(f"<b>Cast:</b> {film['cast']}")
+        cast_members = [name.strip() for name in film["cast"].split(",")]
+        cast_text = ", ".join(cast_members[:5])
+        lines.append(f"Cast: {cast_text}")
 
     if film.get("synopsis"):
         lines.append("")
-        lines.append("<b>Plot</b>")
-        lines.append(film["synopsis"])
+        lines.append(f"<i>{film['synopsis']}</i>")
 
     return "\n".join(lines)
 
@@ -46,11 +43,9 @@ def format_digest(films, source_url=SOURCE_URL):
     if not films:
         return "No new releases found this week."
 
-    lines = [
-        "🎬 <b>STREAMING RADAR</b>",
-        "",
-        f"Found {len(films)} movies:",
-        "",
+    blocks = [
+        "<b>🎬 STREAMING RADAR</b>\n"
+        f"<i>{len(films)} movies · This week</i>"
     ]
 
     current_date = None
@@ -60,25 +55,25 @@ def format_digest(films, source_url=SOURCE_URL):
 
         if release_date != current_date:
             current_date = release_date
-            lines.append(f"\n <b>{current_date}</b>\n")
+            blocks.append(f"<b>{current_date.upper()}</b>")
 
-        lines.append(format_film(film))
-        lines.append("")
+        blocks.append(format_film(film))
 
-    lines.append(
-        f' <a href="{source_url}">Source: When to Stream</a>'
+    blocks.append(
+        f'<a href="{source_url}">Source: When to Stream</a>'
     )
 
-    return "\n".join(lines)
+    return "\n\n".join(blocks)
 
 
 if __name__ == "__main__":
-    from parser import parse_article
+    from parser import find_latest_weekly_article, parse_article
     from tmdb import enrich_films
 
-    films = parse_article(SOURCE_URL)
+    article_url = find_latest_weekly_article()
+    films = parse_article(article_url)
     films = enrich_films(films)
 
-    message = format_digest(films)
+    message = format_digest(films, article_url)
 
     print(message)
