@@ -30,15 +30,19 @@ def find_latest_weekly_article():
     for link in soup.find_all("a", href=True):
 
         title = link.get_text(" ", strip=True)
+        article_url = urljoin(homepage, link["href"])
 
-        if not re.search(
+        is_weekly_preview = re.search(
             r"what.?s streaming this week",
             title,
             re.IGNORECASE
-        ):
+        ) or re.search(
+            r"whats-streaming-this-week",
+            article_url,
+            re.IGNORECASE
+        )
+        if not is_weekly_preview:
             continue
-
-        article_url = urljoin(homepage, link["href"])
 
         match = re.search(
             r"this-week-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d{1,2})",
