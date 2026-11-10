@@ -37,7 +37,7 @@ def main():
     films = enrich_films(films)
     print("Фильмы обогащены данными TMDB")
 
-    message = format_digest(films, article_url)
+    message = format_digest(films)
 
     # Отправляем дайджест в Telegram
     send_telegram_message(message)

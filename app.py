@@ -136,7 +136,7 @@ def build_latest_digest_messages():
     except Exception:
         app.logger.exception("TMDB enrichment failed; using article details")
 
-    return split_message(format_digest(films, article_url))
+    return split_message(format_digest(films))
 
 
 @app.route("/", methods=["GET"])

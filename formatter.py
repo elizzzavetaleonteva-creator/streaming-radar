@@ -38,7 +38,7 @@ def format_film(film):
     return "\n".join(lines)
 
 
-def format_digest(films, source_url=SOURCE_URL):
+def format_digest(films):
     if not films:
         return "No new releases found this week."
 
@@ -58,10 +58,6 @@ def format_digest(films, source_url=SOURCE_URL):
 
         blocks.append(format_film(film))
 
-    blocks.append(
-        f'<a href="{source_url}">Source: When to Stream</a>'
-    )
-
     return "\n\n".join(blocks)
 
 
@@ -73,6 +69,6 @@ if __name__ == "__main__":
     films = parse_article(article_url)
     films = enrich_films(films)
 
-    message = format_digest(films, article_url)
+    message = format_digest(films)
 
     print(message)
