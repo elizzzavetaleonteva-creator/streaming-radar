@@ -9,11 +9,11 @@ def format_film(film):
     if release_type == "subscription":
         release_label = f"{platform} · Subscription"
     elif release_type == "digital_purchase":
-        release_label = f"{platform} · Digital purchase"
+        release_label = "Digital purchase"
     elif release_type == "digital_rental":
-        release_label = f"{platform} · Digital rental"
+        release_label = "Digital rental"
     elif release_type == "digital_purchase_and_rental":
-        release_label = f"{platform} · Digital purchase / rental"
+        release_label = "Digital purchase / rental"
     else:
         release_label = platform
 
