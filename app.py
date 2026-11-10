@@ -2,12 +2,13 @@
 import json
 import os
 import hmac
+import random
 import requests
 from flask import Flask, request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from formatter import format_digest
+from formatter import format_digest, format_film
 from parser import find_latest_weekly_article, parse_article
 from telegram_bot import split_message
 from tmdb import enrich_films
@@ -49,6 +50,7 @@ To unsubscribe, send /stop.
 """
 
 LATEST_ERROR_MESSAGE = "Sorry, I could not load the latest digest right now. Please try again later."
+RANDOM_ERROR_MESSAGE = "Sorry, I could not pick a movie right now. Please try again later."
 
 STOP_MESSAGE = """
 You have been unsubscribed from Streaming Radar.
@@ -113,7 +115,7 @@ def supabase_request(method, telegram_id, data=None):
     response.raise_for_status()
 
 
-def build_latest_digest_messages():
+def get_latest_films():
     article_url = None
 
     if LAST_ARTICLE_FILE.exists():
@@ -136,7 +138,22 @@ def build_latest_digest_messages():
     except Exception:
         app.logger.exception("TMDB enrichment failed; using article details")
 
-    return split_message(format_digest(films))
+    return films
+
+
+def build_latest_digest_messages():
+    return split_message(format_digest(get_latest_films()))
+
+
+def build_random_pick_messages():
+    film = random.choice(get_latest_films())
+    release_date = (film.get("release_date") or "Date unavailable").upper()
+    message = (
+        "<b>🎲 Your random pick</b>\n\n"
+        f"<b>{release_date}</b>\n\n"
+        f"{format_film(film)}"
+    )
+    return split_message(message)
 
 
 @app.route("/", methods=["GET"])
@@ -220,6 +237,20 @@ def webhook():
         else:
             for digest_message in messages:
                 send_message(chat_id, digest_message)
+
+    elif command == "/random" and telegram_id:
+
+        if chat.get("type") != "private":
+            return "OK", 200
+
+        try:
+            messages = build_random_pick_messages()
+        except Exception:
+            app.logger.exception("Failed to build a random movie pick")
+            send_message(chat_id, RANDOM_ERROR_MESSAGE)
+        else:
+            for random_message in messages:
+                send_message(chat_id, random_message)
 
     elif command == "/info":
 
