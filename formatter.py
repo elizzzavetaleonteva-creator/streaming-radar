@@ -21,7 +21,7 @@ def format_film(film):
 
     lines = [
         f"<b>{original_title}</b>",
-        f"<i>{release_label}</i>",
+        release_label,
     ]
 
     if film.get("director"):
@@ -33,7 +33,6 @@ def format_film(film):
         lines.append(f"Cast: {cast_text}")
 
     if film.get("synopsis"):
-        lines.append("")
         lines.append(f"<i>{film['synopsis']}</i>")
 
     return "\n".join(lines)

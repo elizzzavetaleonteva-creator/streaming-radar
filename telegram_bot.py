@@ -13,28 +13,74 @@ SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "").strip()
 
 
 def split_message(text, max_length=4000):
-    paragraphs = text.split("\n\n")
+    """Split a formatted digest between complete film cards."""
+    if max_length <= 0:
+        raise ValueError("max_length must be positive")
+
+    blocks = text.split("\n\n")
+    if len(blocks) == 1:
+        return [text] if len(text) <= max_length else _oversized_block(text)
+
+    header = blocks[0]
+    source = None
+    if blocks[-1].startswith("<a href="):
+        source = blocks.pop()
+
+    # A film card starts with a bold title and contains further lines. A date
+    # heading is a standalone bold block and is kept with the next card.
+    cards = []
+    pending_date = None
+    for block in blocks[1:]:
+        if block.startswith("<b>") and "\n" not in block:
+            pending_date = block if pending_date is None else pending_date + "\n\n" + block
+            continue
+        if block:
+            card = (pending_date + "\n\n" if pending_date else "") + block
+            cards.append(card)
+            pending_date = None
+    if pending_date:
+        # Keep an unusual trailing heading intact rather than dropping it.
+        cards.append(pending_date)
+
     messages = []
-    current_message = ""
-
-    for paragraph in paragraphs:
-        candidate = (
-            current_message + "\n\n" + paragraph
-            if current_message
-            else paragraph
-        )
-
+    current = header
+    for card in cards:
+        candidate = current + "\n\n" + card
         if len(candidate) <= max_length:
-            current_message = candidate
+            current = candidate
+            continue
+        if current != header:
+            messages.append(current)
+            current = card
         else:
-            if current_message:
-                messages.append(current_message)
-            current_message = paragraph
+            # If the first card does not fit with the header, retain it whole
+            # in its own message and leave the header in the first message.
+            if len(header) <= max_length:
+                messages.append(header)
+                current = card
+            else:
+                raise ValueError("Digest header exceeds Telegram message limit")
+        if len(current) > max_length:
+            raise ValueError("A complete film card exceeds Telegram message limit")
 
-    if current_message:
-        messages.append(current_message)
+    if source:
+        candidate = current + "\n\n" + source
+        if len(candidate) <= max_length:
+            current = candidate
+        else:
+            if current:
+                messages.append(current)
+            if len(source) > max_length:
+                raise ValueError("Digest source exceeds Telegram message limit")
+            current = source
 
+    if current:
+        messages.append(current)
     return messages
+
+
+def _oversized_block(block):
+    raise ValueError("A complete digest block exceeds Telegram message limit")
 
 
 def get_active_subscribers():
