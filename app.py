@@ -29,8 +29,6 @@ Discover the latest movie releases across streaming platforms — from subscript
 
 Every Friday, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
 
-Send /latest anytime to get the latest digest.
-
 Less scrolling. More watching. 🍿
 """
 
