@@ -1,12 +1,10 @@
 
-import json
 import os
 import hmac
 import random
 import requests
 from flask import Flask, request
 from datetime import datetime, timezone
-from pathlib import Path
 
 from formatter import format_digest, format_film
 from parser import find_latest_weekly_article, parse_article
@@ -19,7 +17,6 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
-LAST_ARTICLE_FILE = Path(__file__).parent / "data" / "last_article.json"
 
 INFO_MESSAGE = """
 🎬 <b>Streaming Radar</b>
@@ -116,19 +113,7 @@ def supabase_request(method, telegram_id, data=None):
 
 
 def get_latest_films():
-    article_url = None
-
-    if LAST_ARTICLE_FILE.exists():
-        try:
-            with LAST_ARTICLE_FILE.open("r", encoding="utf-8") as file:
-                state = json.load(file)
-            article_url = state.get("last_article_url") if isinstance(state, dict) else None
-        except (OSError, json.JSONDecodeError):
-            app.logger.exception("Could not read the last article state")
-
-    if not article_url:
-        article_url = find_latest_weekly_article()
-
+    article_url = find_latest_weekly_article()
     films = parse_article(article_url)
     if not films:
         raise ValueError("The latest article contains no movie releases")
