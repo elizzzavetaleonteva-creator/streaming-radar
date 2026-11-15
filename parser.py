@@ -91,6 +91,7 @@ STREAMING_PLATFORMS = [
     "Hulu",
     "Disney+",
     "Amazon Prime Video",
+    "Prime Video",
     "Peacock",
     "Shudder",
     "Mubi",
