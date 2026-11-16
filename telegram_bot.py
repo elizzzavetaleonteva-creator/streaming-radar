@@ -146,7 +146,7 @@ def send_telegram_message(text):
     messages = split_message(text)
 
     successful = 0
-    failed = []
+    failed = 0
 
     print(f"Активных подписчиков: {len(subscribers)}")
 
@@ -157,18 +157,17 @@ def send_telegram_message(text):
                 time.sleep(0.05)
 
             successful += 1
-            print(f"Дайджест отправлен: {telegram_id}")
 
-        except Exception as error:
-            failed.append(telegram_id)
-            print(f"Ошибка отправки для {telegram_id}: {error}")
+        except Exception:
+            failed += 1
+            print("Ошибка отправки одному из подписчиков")
 
         time.sleep(0.05)
 
     print(f"Успешно: {successful}")
-    print(f"Ошибок: {len(failed)}")
+    print(f"Ошибок: {failed}")
 
     if failed:
         raise RuntimeError(
-            f"Не удалось отправить дайджест подписчикам: {failed}"
+            f"Не удалось отправить дайджест {failed} подписчикам"
         )
