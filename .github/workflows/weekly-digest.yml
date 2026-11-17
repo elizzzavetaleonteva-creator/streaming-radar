@@ -2,7 +2,7 @@ name: Weekly Streaming Radar
 
 on:
   schedule:
-    - cron: "0 16 * * 1"
+    - cron: "5 21 * * 0"
   workflow_dispatch:
 
 permissions:
