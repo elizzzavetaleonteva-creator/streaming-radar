@@ -80,9 +80,15 @@ def get_movie_details(title):
         for person in credits.get("cast", [])[:10]
     ]
 
+    poster_path = details.get("poster_path")
+
     return {
         "original_title": details.get("original_title") or title,
         "release_date": details.get("release_date", ""),
+        "poster_url": (
+            f"https://image.tmdb.org/t/p/w500{poster_path}"
+            if poster_path else ""
+        ),
         "original_language": details.get("original_language", ""),
         "director": ", ".join(directors),
         "cast": ", ".join(cast),
@@ -99,6 +105,7 @@ def enrich_films(films):
 
             for field in [
                 "original_title",
+                "poster_url",
                 "director",
                 "cast",
                 "synopsis"

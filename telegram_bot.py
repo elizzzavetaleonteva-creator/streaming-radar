@@ -133,7 +133,52 @@ def send_one_message(chat_id, text):
         raise RuntimeError(f"Ошибка Telegram: {result}")
 
 
-def send_telegram_message(text):
+def _check_telegram_response(response):
+    response.raise_for_status()
+    result = response.json()
+    if not result.get("ok"):
+        raise RuntimeError("Telegram API request failed")
+
+
+def send_one_photo(chat_id, photo_url):
+    response = requests.post(
+        f"https://api.telegram.org/bot{TOKEN}/sendPhoto",
+        json={
+            "chat_id": chat_id,
+            "photo": photo_url,
+        },
+        timeout=30,
+    )
+    _check_telegram_response(response)
+
+
+def send_poster_album(chat_id, films):
+    posters = [
+        film.get("poster_url")
+        for film in films
+        if film.get("poster_url")
+    ][:10]
+
+    if not posters:
+        return
+
+    if len(posters) == 1:
+        send_one_photo(chat_id, posters[0])
+    else:
+        media = [
+            {"type": "photo", "media": photo_url}
+            for photo_url in posters
+        ]
+        response = requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/sendMediaGroup",
+            json={"chat_id": chat_id, "media": media},
+            timeout=60,
+        )
+        _check_telegram_response(response)
+    time.sleep(0.05)
+
+
+def send_telegram_message(text, films=None):
     if not TOKEN:
         raise ValueError("Не найден TELEGRAM_BOT_TOKEN")
 
@@ -152,6 +197,9 @@ def send_telegram_message(text):
 
     for telegram_id in subscribers:
         try:
+            if films:
+                send_poster_album(telegram_id, films)
+
             for message in messages:
                 send_one_message(telegram_id, message)
                 time.sleep(0.05)

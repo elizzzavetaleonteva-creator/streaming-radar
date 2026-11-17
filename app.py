@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from formatter import format_digest, format_film
 from parser import find_latest_weekly_article, parse_article
-from telegram_bot import split_message
+from telegram_bot import send_poster_album, split_message
 from tmdb import enrich_films
 app = Flask(__name__)
 
@@ -28,6 +28,9 @@ Discover the latest movie releases across streaming platforms — from subscript
 Every Monday, get a curated digest with movie details, cast, directors, plot summaries, and where to watch.
 
 Less scrolling. More watching. 🍿
+
+Movie data and posters: <a href="https://www.themoviedb.org/">TMDB</a>.
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 """
 
 WELCOME_MESSAGE = """
@@ -126,11 +129,16 @@ def get_latest_films():
     return films
 
 
+def build_latest_digest():
+    films = get_latest_films()
+    return films, split_message(format_digest(films))
+
+
 def build_latest_digest_messages():
-    return split_message(format_digest(get_latest_films()))
+    return build_latest_digest()[1]
 
 
-def build_random_pick_messages():
+def build_random_pick():
     film = random.choice(get_latest_films())
     release_date = (film.get("release_date") or "Date unavailable").upper()
     message = (
@@ -138,7 +146,11 @@ def build_random_pick_messages():
         f"<b>{release_date}</b>\n\n"
         f"{format_film(film)}"
     )
-    return split_message(message)
+    return film, split_message(message)
+
+
+def build_random_pick_messages():
+    return build_random_pick()[1]
 
 
 @app.route("/", methods=["GET"])
@@ -215,13 +227,13 @@ def webhook():
             return "OK", 200
 
         try:
-            messages = build_latest_digest_messages()
-        except Exception:
-            app.logger.exception("Failed to build the latest digest")
-            send_message(chat_id, LATEST_ERROR_MESSAGE)
-        else:
+            films, messages = build_latest_digest()
+            send_poster_album(chat_id, films)
             for digest_message in messages:
                 send_message(chat_id, digest_message)
+        except Exception:
+            app.logger.exception("Failed to send the latest digest")
+            send_message(chat_id, LATEST_ERROR_MESSAGE)
 
     elif command == "/random" and telegram_id:
 
@@ -229,13 +241,13 @@ def webhook():
             return "OK", 200
 
         try:
-            messages = build_random_pick_messages()
-        except Exception:
-            app.logger.exception("Failed to build a random movie pick")
-            send_message(chat_id, RANDOM_ERROR_MESSAGE)
-        else:
+            film, messages = build_random_pick()
+            send_poster_album(chat_id, [film])
             for random_message in messages:
                 send_message(chat_id, random_message)
+        except Exception:
+            app.logger.exception("Failed to send a random movie pick")
+            send_message(chat_id, RANDOM_ERROR_MESSAGE)
 
     elif command == "/info":
 

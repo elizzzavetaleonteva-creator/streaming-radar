@@ -40,7 +40,7 @@ def main():
     message = format_digest(films)
 
     # Отправляем дайджест в Telegram
-    send_telegram_message(message)
+    send_telegram_message(message, films=films)
 
     # Сохраняем URL только после успешной отправки
     with STATE_FILE.open("w", encoding="utf-8") as file:
