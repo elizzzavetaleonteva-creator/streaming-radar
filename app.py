@@ -75,6 +75,30 @@ def send_message(chat_id, message):
         timeout=15
     )
     response.raise_for_status()
+    result = response.json()
+    if not result.get("ok"):
+        raise RuntimeError("Telegram sendMessage request failed")
+    return result["result"]
+
+
+def edit_message(chat_id, message_id, message):
+    if not BOT_TOKEN:
+        raise RuntimeError("Bot token is not configured")
+
+    response = requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
+        json={
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": message,
+            "parse_mode": "HTML"
+        },
+        timeout=15
+    )
+    response.raise_for_status()
+    result = response.json()
+    if not result.get("ok"):
+        raise RuntimeError("Telegram editMessageText request failed")
 
 
 def supabase_request(method, telegram_id, data=None):
@@ -226,28 +250,73 @@ def webhook():
         if chat.get("type") != "private":
             return "OK", 200
 
+        loading_message = None
         try:
+            loading_message = send_message(
+                chat_id,
+                "⏳ Working on it…"
+            )
             films, messages = build_latest_digest()
             send_poster_album(chat_id, films)
             for digest_message in messages:
                 send_message(chat_id, digest_message)
+            try:
+                edit_message(
+                    chat_id,
+                    loading_message["message_id"],
+                    "✅ Your latest digest is ready — posters and details are below."
+                )
+            except Exception:
+                app.logger.exception("Failed to update the latest-digest status")
         except Exception:
             app.logger.exception("Failed to send the latest digest")
-            send_message(chat_id, LATEST_ERROR_MESSAGE)
+            if loading_message:
+                try:
+                    edit_message(
+                        chat_id,
+                        loading_message["message_id"],
+                        LATEST_ERROR_MESSAGE
+                    )
+                except Exception:
+                    app.logger.exception("Failed to update the latest-digest status")
+                    send_message(chat_id, LATEST_ERROR_MESSAGE)
+            else:
+                send_message(chat_id, LATEST_ERROR_MESSAGE)
 
     elif command == "/random" and telegram_id:
 
         if chat.get("type") != "private":
             return "OK", 200
 
+        loading_message = None
         try:
+            loading_message = send_message(chat_id, "⏳ Working on it…")
             film, messages = build_random_pick()
             send_poster_album(chat_id, [film])
             for random_message in messages:
                 send_message(chat_id, random_message)
+            try:
+                edit_message(
+                    chat_id,
+                    loading_message["message_id"],
+                    "✅ Your random pick is ready — details are below."
+                )
+            except Exception:
+                app.logger.exception("Failed to update the random-pick status")
         except Exception:
             app.logger.exception("Failed to send a random movie pick")
-            send_message(chat_id, RANDOM_ERROR_MESSAGE)
+            if loading_message:
+                try:
+                    edit_message(
+                        chat_id,
+                        loading_message["message_id"],
+                        RANDOM_ERROR_MESSAGE
+                    )
+                except Exception:
+                    app.logger.exception("Failed to update the random-pick status")
+                    send_message(chat_id, RANDOM_ERROR_MESSAGE)
+            else:
+                send_message(chat_id, RANDOM_ERROR_MESSAGE)
 
     elif command == "/info":
 
