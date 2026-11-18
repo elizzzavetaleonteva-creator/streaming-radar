@@ -165,6 +165,22 @@ def send_one_photo(chat_id, photo_url):
     )
 
 
+def send_poster_photos(chat_id, films):
+    posters = [film.get("poster_url") for film in films if film.get("poster_url")]
+    sent = 0
+
+    for index, photo_url in enumerate(posters, start=1):
+        if index > 1:
+            time.sleep(1)
+        try:
+            send_one_photo(chat_id, photo_url)
+            sent += 1
+        except Exception as error:
+            print(f"Poster {index} failed; skipping: {error}")
+
+    return sent > 0
+
+
 def send_poster_album(chat_id, films):
     posters = [
         film.get("poster_url")
