@@ -17,8 +17,8 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import hashlib
           import os
-          import re
           import sys
           from urllib.error import HTTPError, URLError
           from urllib.parse import urlencode
@@ -30,10 +30,8 @@ jobs:
 
           if not token or not secret:
               sys.exit("Required GitHub Actions secrets are missing.")
-          if not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", secret):
-              sys.exit("WEBHOOK_SECRET contains characters Telegram does not allow.")
-
           api_base = f"https://api.telegram.org/bot{token}"
+          telegram_secret = hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
           def call_api(method, params=None):
               data = urlencode(params or {}).encode() if params is not None else None
@@ -52,7 +50,7 @@ jobs:
 
           result = call_api("setWebhook", {
               "url": webhook_url,
-              "secret_token": secret,
+              "secret_token": telegram_secret,
               "allowed_updates": json.dumps(["message"]),
           })
           if not result.get("ok"):

@@ -1,6 +1,7 @@
 
 import os
 import hmac
+import hashlib
 import random
 import requests
 from flask import Flask, request
@@ -207,7 +208,8 @@ def webhook():
         "X-Telegram-Bot-Api-Secret-Token", ""
     )
 
-    if not hmac.compare_digest(received_secret, WEBHOOK_SECRET):
+    expected_secret = hashlib.sha256(WEBHOOK_SECRET.encode("utf-8")).hexdigest()
+    if not hmac.compare_digest(received_secret, expected_secret):
         return "Unauthorized", 403
 
     update = request.get_json(silent=True) or {}
