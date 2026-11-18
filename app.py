@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from formatter import format_digest, format_film
 from parser import find_latest_weekly_article, parse_article
-from telegram_bot import send_poster_album, send_poster_photos, split_message
+from telegram_bot import send_poster_album, send_poster_album_resilient, split_message
 from tmdb import enrich_films
 app = Flask(__name__)
 
@@ -276,10 +276,10 @@ def webhook():
             films, messages = build_latest_digest()
             posters_sent = False
             try:
-                posters_sent = send_poster_photos(chat_id, films)
+                posters_sent = send_poster_album_resilient(chat_id, films)
             except Exception as error:
                 app.logger.warning(
-                    "Poster delivery failed; continuing with latest digest: %s",
+                    "Poster album delivery failed; continuing with latest digest: %s",
                     error
                 )
             for digest_message in messages:

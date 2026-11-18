@@ -1,5 +1,6 @@
 
 
+import json
 import os
 import time
 import requests
@@ -111,15 +112,20 @@ def get_active_subscribers():
     return [subscriber["telegram_id"] for subscriber in subscribers]
 
 
-def _telegram_post(method, payload, timeout=30):
+def _telegram_post(method, payload, timeout=30, files=None):
     if not TOKEN:
         raise ValueError("Не найден TELEGRAM_BOT_TOKEN")
 
     try:
+        request_data = {"timeout": timeout}
+        if files is None:
+            request_data["json"] = payload
+        else:
+            request_data["data"] = payload
+            request_data["files"] = files
         response = requests.post(
             f"https://api.telegram.org/bot{TOKEN}/{method}",
-            json=payload,
-            timeout=timeout,
+            **request_data,
         )
     except requests.RequestException as error:
         # Do not let requests print the token-bearing URL in the exception.
@@ -165,20 +171,74 @@ def send_one_photo(chat_id, photo_url):
     )
 
 
-def send_poster_photos(chat_id, films):
-    posters = [film.get("poster_url") for film in films if film.get("poster_url")]
-    sent = 0
-
-    for index, photo_url in enumerate(posters, start=1):
-        if index > 1:
-            time.sleep(1)
+def send_poster_album_resilient(chat_id, films):
+    posters = []
+    for index, film in enumerate(films, start=1):
+        photo_url = film.get("poster_url")
+        if not photo_url:
+            continue
         try:
-            send_one_photo(chat_id, photo_url)
-            sent += 1
+            response = requests.get(
+                photo_url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; StreamingRadar/1.0)"},
+                timeout=20,
+            )
+            response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "image/jpeg")
+            if not content_type.lower().startswith("image/"):
+                raise ValueError("URL did not return an image")
+            posters.append((index, response.content, content_type.split(";", 1)[0]))
+            if len(posters) == 10:
+                break
         except Exception as error:
-            print(f"Poster {index} failed; skipping: {error}")
+            print(f"Poster {index} download failed; skipping ({type(error).__name__})")
 
-    return sent > 0
+    if not posters:
+        return False
+
+    media = []
+    files = {}
+    for offset, (_, content, content_type) in enumerate(posters):
+        file_key = f"poster{offset}"
+        extension = "png" if content_type == "image/png" else "jpg"
+        media.append({"type": "photo", "media": f"attach://{file_key}"})
+        files[file_key] = (f"{file_key}.{extension}", content, content_type)
+
+    try:
+        if len(posters) == 1:
+            _telegram_post(
+                "sendPhoto",
+                {"chat_id": chat_id},
+                files={"photo": files["poster0"]},
+            )
+        else:
+            _telegram_post(
+                "sendMediaGroup",
+                {"chat_id": chat_id, "media": json.dumps(media)},
+                timeout=60,
+                files=files,
+            )
+        return True
+    except Exception as error:
+        print(f"Poster album upload failed; trying photos individually: {error}")
+        sent = 0
+        for offset, (poster_index, content, content_type) in enumerate(posters):
+            if offset:
+                time.sleep(1)
+            extension = "png" if content_type == "image/png" else "jpg"
+            try:
+                _telegram_post(
+                    "sendPhoto",
+                    {"chat_id": chat_id},
+                    files={"photo": (f"poster{poster_index}.{extension}", content, content_type)},
+                )
+                sent += 1
+            except Exception as photo_error:
+                print(
+                    f"Poster {poster_index} upload failed; skipping "
+                    f"({type(photo_error).__name__})"
+                )
+        return sent > 0
 
 
 def send_poster_album(chat_id, films):
