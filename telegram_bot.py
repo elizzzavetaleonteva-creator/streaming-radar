@@ -111,45 +111,58 @@ def get_active_subscribers():
     return [subscriber["telegram_id"] for subscriber in subscribers]
 
 
-def send_one_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+def _telegram_post(method, payload, timeout=30):
+    if not TOKEN:
+        raise ValueError("Не найден TELEGRAM_BOT_TOKEN")
 
-    response = requests.post(
-        url,
-        json={
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/{method}",
+            json=payload,
+            timeout=timeout,
+        )
+    except requests.RequestException as error:
+        # Do not let requests print the token-bearing URL in the exception.
+        raise RuntimeError(
+            f"Telegram {method} request failed ({type(error).__name__})"
+        ) from None
+
+    try:
+        result = response.json()
+    except ValueError:
+        result = {}
+
+    if not response.ok or not result.get("ok"):
+        description = result.get("description") or "Unknown Telegram API error"
+        if TOKEN and TOKEN in description:
+            description = description.replace(TOKEN, "[redacted]")
+        raise RuntimeError(
+            f"Telegram {method} failed (HTTP {response.status_code}): {description}"
+        )
+
+    return result.get("result")
+
+
+def send_one_message(chat_id, text):
+    _telegram_post(
+        "sendMessage",
+        {
             "chat_id": chat_id,
             "text": text,
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
         },
-        timeout=30,
     )
-
-    response.raise_for_status()
-
-    result = response.json()
-
-    if not result.get("ok"):
-        raise RuntimeError(f"Ошибка Telegram: {result}")
-
-
-def _check_telegram_response(response):
-    response.raise_for_status()
-    result = response.json()
-    if not result.get("ok"):
-        raise RuntimeError("Telegram API request failed")
 
 
 def send_one_photo(chat_id, photo_url):
-    response = requests.post(
-        f"https://api.telegram.org/bot{TOKEN}/sendPhoto",
-        json={
+    _telegram_post(
+        "sendPhoto",
+        {
             "chat_id": chat_id,
             "photo": photo_url,
         },
-        timeout=30,
     )
-    _check_telegram_response(response)
 
 
 def send_poster_album(chat_id, films):
@@ -160,7 +173,7 @@ def send_poster_album(chat_id, films):
     ][:10]
 
     if not posters:
-        return
+        return False
 
     if len(posters) == 1:
         send_one_photo(chat_id, posters[0])
@@ -169,13 +182,13 @@ def send_poster_album(chat_id, films):
             {"type": "photo", "media": photo_url}
             for photo_url in posters
         ]
-        response = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMediaGroup",
-            json={"chat_id": chat_id, "media": media},
+        _telegram_post(
+            "sendMediaGroup",
+            {"chat_id": chat_id, "media": media},
             timeout=60,
         )
-        _check_telegram_response(response)
     time.sleep(0.05)
+    return True
 
 
 def send_telegram_message(text, films=None):
@@ -198,7 +211,13 @@ def send_telegram_message(text, films=None):
     for telegram_id in subscribers:
         try:
             if films:
-                send_poster_album(telegram_id, films)
+                try:
+                    send_poster_album(telegram_id, films)
+                except Exception as error:
+                    print(
+                        "Poster album failed; continuing with digest "
+                        f"({type(error).__name__})"
+                    )
 
             for message in messages:
                 send_one_message(telegram_id, message)

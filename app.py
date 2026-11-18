@@ -61,44 +61,59 @@ If you change your mind, just send /start. 🎬
 """
 
 
-def send_message(chat_id, message):
+def _telegram_request(method, payload):
     if not BOT_TOKEN:
         raise RuntimeError("Bot token is not configured")
 
-    response = requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        json={
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/{method}",
+            json=payload,
+            timeout=15
+        )
+    except requests.RequestException as error:
+        # Avoid logging the token-bearing request URL from requests exceptions.
+        raise RuntimeError(
+            f"Telegram {method} request failed ({type(error).__name__})"
+        ) from None
+
+    try:
+        result = response.json()
+    except ValueError:
+        result = {}
+
+    if not response.ok or not result.get("ok"):
+        description = result.get("description") or "Unknown Telegram API error"
+        if BOT_TOKEN and BOT_TOKEN in description:
+            description = description.replace(BOT_TOKEN, "[redacted]")
+        raise RuntimeError(
+            f"Telegram {method} failed (HTTP {response.status_code}): {description}"
+        )
+
+    return result.get("result")
+
+
+def send_message(chat_id, message):
+    return _telegram_request(
+        "sendMessage",
+        {
             "chat_id": chat_id,
             "text": message,
             "parse_mode": "HTML"
-        },
-        timeout=15
+        }
     )
-    response.raise_for_status()
-    result = response.json()
-    if not result.get("ok"):
-        raise RuntimeError("Telegram sendMessage request failed")
-    return result["result"]
 
 
 def edit_message(chat_id, message_id, message):
-    if not BOT_TOKEN:
-        raise RuntimeError("Bot token is not configured")
-
-    response = requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
-        json={
+    return _telegram_request(
+        "editMessageText",
+        {
             "chat_id": chat_id,
             "message_id": message_id,
             "text": message,
             "parse_mode": "HTML"
-        },
-        timeout=15
+        }
     )
-    response.raise_for_status()
-    result = response.json()
-    if not result.get("ok"):
-        raise RuntimeError("Telegram editMessageText request failed")
 
 
 def supabase_request(method, telegram_id, data=None):
@@ -257,14 +272,26 @@ def webhook():
                 "⏳ Working on it…"
             )
             films, messages = build_latest_digest()
-            send_poster_album(chat_id, films)
+            posters_sent = False
+            try:
+                posters_sent = send_poster_album(chat_id, films)
+            except Exception as error:
+                app.logger.warning(
+                    "Poster album failed; continuing with latest digest (%s)",
+                    type(error).__name__
+                )
             for digest_message in messages:
                 send_message(chat_id, digest_message)
+            status_message = (
+                "✅ Your latest digest is ready — posters and details are below."
+                if posters_sent else
+                "✅ Your latest digest is ready — details are below."
+            )
             try:
                 edit_message(
                     chat_id,
                     loading_message["message_id"],
-                    "✅ Your latest digest is ready — posters and details are below."
+                    status_message
                 )
             except Exception:
                 app.logger.exception("Failed to update the latest-digest status")
@@ -292,14 +319,26 @@ def webhook():
         try:
             loading_message = send_message(chat_id, "⏳ Working on it…")
             film, messages = build_random_pick()
-            send_poster_album(chat_id, [film])
+            posters_sent = False
+            try:
+                posters_sent = send_poster_album(chat_id, [film])
+            except Exception as error:
+                app.logger.warning(
+                    "Poster send failed; continuing with random pick (%s)",
+                    type(error).__name__
+                )
             for random_message in messages:
                 send_message(chat_id, random_message)
+            status_message = (
+                "✅ Your random pick is ready — poster and details are below."
+                if posters_sent else
+                "✅ Your random pick is ready — details are below."
+            )
             try:
                 edit_message(
                     chat_id,
                     loading_message["message_id"],
-                    "✅ Your random pick is ready — details are below."
+                    status_message
                 )
             except Exception:
                 app.logger.exception("Failed to update the random-pick status")
