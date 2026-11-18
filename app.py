@@ -279,8 +279,8 @@ def webhook():
                 posters_sent = send_poster_album(chat_id, films)
             except Exception as error:
                 app.logger.warning(
-                    "Poster album failed; continuing with latest digest (%s)",
-                    type(error).__name__
+                    "Poster album failed; continuing with latest digest: %s",
+                    error
                 )
             for digest_message in messages:
                 send_message(chat_id, digest_message)
@@ -326,8 +326,8 @@ def webhook():
                 posters_sent = send_poster_album(chat_id, [film])
             except Exception as error:
                 app.logger.warning(
-                    "Poster send failed; continuing with random pick (%s)",
-                    type(error).__name__
+                    "Poster send failed; continuing with random pick: %s",
+                    error
                 )
             for random_message in messages:
                 send_message(chat_id, random_message)
