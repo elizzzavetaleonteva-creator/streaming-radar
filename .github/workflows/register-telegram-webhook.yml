@@ -1,0 +1,72 @@
+name: Register Telegram webhook
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  register-webhook:
+    runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+    steps:
+      - name: Register and verify webhook
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+          secret = os.environ.get("WEBHOOK_SECRET", "")
+          webhook_url = "https://streaming-radar-bot.onrender.com/webhook"
+
+          if not token or not secret:
+              sys.exit("Required GitHub Actions secrets are missing.")
+          if not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", secret):
+              sys.exit("WEBHOOK_SECRET contains characters Telegram does not allow.")
+
+          api_base = f"https://api.telegram.org/bot{token}"
+
+          def call_api(method, params=None):
+              data = urlencode(params or {}).encode() if params is not None else None
+              request = Request(
+                  f"{api_base}/{method}",
+                  data=data,
+                  headers={"Content-Type": "application/x-www-form-urlencoded"},
+                  method="POST" if data is not None else "GET",
+              )
+              try:
+                  with urlopen(request, timeout=30) as response:
+                      return json.load(response)
+              except (HTTPError, URLError, TimeoutError) as error:
+                  print(f"Telegram API request failed ({type(error).__name__}).")
+                  sys.exit(1)
+
+          result = call_api("setWebhook", {
+              "url": webhook_url,
+              "secret_token": secret,
+              "allowed_updates": json.dumps(["message"]),
+          })
+          if not result.get("ok"):
+              sys.exit("Telegram rejected the webhook registration.")
+          print("Telegram accepted the webhook registration.")
+
+          info = call_api("getWebhookInfo")
+          if not info.get("ok"):
+              sys.exit("Telegram did not return webhook status.")
+          details = info.get("result", {})
+          print(f"Webhook URL matches: {details.get('url') == webhook_url}")
+          print(f"Pending updates: {details.get('pending_update_count', 'unknown')}")
+          if details.get("last_error_message"):
+              print(f"Last delivery error: {details['last_error_message']}")
+          if details.get("url") != webhook_url:
+              sys.exit("Webhook verification failed: URL does not match.")
+          PY
