@@ -155,6 +155,40 @@ def supabase_request(method, telegram_id, data=None):
     response.raise_for_status()
 
 
+TRACKED_COMMANDS = {"/start", "/stop", "/latest", "/random", "/info"}
+
+def record_command_event(telegram_id, sender, command):
+    """Store a private command interaction without affecting bot replies."""
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        return
+
+    payload = {
+        "telegram_id": telegram_id,
+        "username": sender.get("username"),
+        "first_name": sender.get("first_name"),
+        "command": command,
+    }
+    headers = {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+
+    try:
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/bot_events",
+            headers=headers,
+            json=payload,
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.RequestException as error:
+        # Analytics must never prevent a bot command from being answered.
+        app.logger.warning(
+            "Command analytics write failed (%s)", type(error).__name__
+        )
+
+
 def get_latest_films():
     article_url = find_latest_weekly_article()
     films = parse_article(article_url)
@@ -226,6 +260,13 @@ def webhook():
         return "OK", 200
 
     command = text.split()[0].split("@")[0]
+
+    if (
+        telegram_id
+        and chat.get("type") == "private"
+        and command in TRACKED_COMMANDS
+    ):
+        record_command_event(telegram_id, sender, command)
 
     if command == "/start" and telegram_id:
 
